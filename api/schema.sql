@@ -627,3 +627,24 @@ CREATE INDEX IF NOT EXISTS idx_game_map_tile_overrides_map
     ON game_map_tile_overrides(map_num, status);
 CREATE INDEX IF NOT EXISTS idx_game_uploaded_graphics_created_at
     ON game_uploaded_graphics(created_at DESC);
+
+-- Historial de revisiones, undo/redo y auditoria de ediciones de mapa (#12).
+-- Registra deltas livianos por cada operacion de edicion y guarda un snapshot
+-- completo cada N revisiones para limitar el costo de reconstruccion.
+CREATE TABLE IF NOT EXISTS game_map_revisions (
+    id BIGSERIAL PRIMARY KEY,
+    map_num INTEGER NOT NULL CHECK (map_num > 0),
+    revision_num INTEGER NOT NULL CHECK (revision_num > 0),
+    action TEXT NOT NULL CHECK (action IN ('edit', 'undo', 'redo', 'rollback', 'publish')),
+    delta JSONB NOT NULL,
+    snapshot JSONB,
+    author_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (map_num, revision_num)
+);
+
+CREATE INDEX IF NOT EXISTS idx_game_map_revisions_map_rev
+    ON game_map_revisions(map_num, revision_num DESC);
+CREATE INDEX IF NOT EXISTS idx_game_map_revisions_author
+    ON game_map_revisions(author_account_id);
+
